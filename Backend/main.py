@@ -17,6 +17,13 @@ from reportlab.pdfgen import canvas
 # FastAPI Ap
 app = FastAPI()
 
+@app.get("/")
+def home():
+    return {
+        "status": "OK",
+        "message": "PDF Converter API is running"
+    }
+
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
