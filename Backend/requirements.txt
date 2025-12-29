@@ -4,3 +4,4 @@ pdf2docx
 python-docx
 reportlab
 python-multipart
+docx2pdf

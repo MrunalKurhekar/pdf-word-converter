@@ -1,21 +1,21 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import shutil
 import os
-import mimetypes
 from docx2pdf import convert
-
-
-# PDF → Word
 from pdf2docx import Converter
 
-# Word → PDF
-from docx import Document
-from reportlab.pdfgen import canvas
-
-# FastAPI Ap
+# FastAPI App
 app = FastAPI()
+
+@app.get("/")
+def home():
+    return {
+        "status": "OK",
+        "message": "PDF Converter API is running"
+    }
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -31,6 +31,10 @@ UPLOAD_DIR = "uploads"
 OUTPUT_DIR = "outputs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# -------------------
+# APIs
+# -------------------
 
 # Upload API
 @app.post("/upload")
@@ -92,9 +96,7 @@ def word_to_pdf(filename: str):
 
     return {"output_file": pdf_filename}
 
-
 # Download API
-
 @app.get("/download/{filename}")
 def download_file(filename: str):
     file_path = os.path.join(OUTPUT_DIR, filename)
@@ -108,19 +110,13 @@ def download_file(filename: str):
         filename=filename
     )
 
-# # Preview API (for PDF preview in browser)
+# -------------------
+# Serve React Frontend
+# -------------------
 
-# @app.get("/preview/{filename}")
-# def preview_file(filename: str):
-#     file_path = os.path.join(OUTPUT_DIR, filename)
-    
-#     if not os.path.exists(file_path):
-#         raise HTTPException(status_code=404, detail="File not found")
-    
-#     # Detect MIME type for browser preview
-#     mime_type, _ = mimetypes.guess_type(file_path)
-    
-#     return FileResponse(
-#         file_path,
-#         media_type=mime_type or "application/pdf"
-#     )
+# Path to React build folder
+frontend_build_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "build")
+
+# Mount React build
+app.mount("/app", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
+
