@@ -1,10 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from docx2pdf import convert
 import shutil
 import os
-from docx2pdf import convert
+from PyPDF2 import PdfReader
 from pdf2docx import Converter
 
 # FastAPI App
@@ -16,6 +16,8 @@ def home():
         "status": "OK",
         "message": "PDF Converter API is running"
     }
+
+
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -52,49 +54,92 @@ async def upload_file(file: UploadFile = File(...)):
 # PDF → Word API
 @app.post("/convert/pdf-to-word")
 def pdf_to_word(filename: str):
+
     if not filename:
         raise HTTPException(status_code=400, detail="Filename is required")
-    
-    pdf_path = os.path.join(UPLOAD_DIR, filename)
-    
-    if not os.path.exists(pdf_path):
-        raise HTTPException(status_code=404, detail="PDF file not found")
-    
+
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
-    
+
+    pdf_path = os.path.join(UPLOAD_DIR, filename)
+
+    if not os.path.exists(pdf_path):
+        raise HTTPException(status_code=404, detail="PDF file not found")
+
+    # 🔎 Check if PDF is scanned (image-based)
+    try:
+        reader = PdfReader(pdf_path)
+        if not reader.pages[0].extract_text():
+            raise HTTPException(
+                status_code=400,
+                detail="Scanned PDFs are not supported"
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to read PDF content"
+        )
+
     word_filename = filename.replace(".pdf", ".docx")
     word_path = os.path.join(OUTPUT_DIR, word_filename)
-    
-    converter = Converter(pdf_path)
-    converter.convert(word_path)
-    converter.close()
-    
+
+    try:
+        converter = Converter(pdf_path)
+        converter.convert(word_path)
+        converter.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Conversion failed: {str(e)}")
+
     return {"output_file": word_filename}
+
 
 # Word → PDF API
 @app.post("/convert/word-to-pdf")
 def word_to_pdf(filename: str):
-    if not filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
 
+    if not filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Filename is required"
+        )
+
+    # Full file path
     doc_path = os.path.join(UPLOAD_DIR, filename)
 
+    # Check file exists
     if not os.path.exists(doc_path):
-        raise HTTPException(status_code=404, detail="Word file not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Word file not found"
+        )
 
+    # Allow only .docx files
     if not filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Only DOCX files allowed")
+        raise HTTPException(
+            status_code=400,
+            detail="Only DOCX files are allowed"
+        )
 
-    pdf_filename = filename.replace(".docx", ".pdf")
+    # Generate output filename safely
+    base_name = os.path.splitext(filename)[0]
+    pdf_filename = f"{base_name}.pdf"
     pdf_path = os.path.join(OUTPUT_DIR, pdf_filename)
 
     try:
+        # Convert Word → PDF
         convert(doc_path, pdf_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-    return {"output_file": pdf_filename}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Conversion failed: {str(e)}"
+        )
+
+    return {
+        "message": "Conversion successful",
+        "output_file": pdf_filename
+    }
+
 
 # Download API
 @app.get("/download/{filename}")
@@ -109,14 +154,4 @@ def download_file(filename: str):
         media_type="application/octet-stream",  # Forces download
         filename=filename
     )
-
-# -------------------
-# Serve React Frontend
-# -------------------
-
-# Path to React build folder
-frontend_build_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "build")
-
-# Mount React build
-app.mount("/app", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
 

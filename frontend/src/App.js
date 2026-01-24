@@ -68,12 +68,18 @@ function App() {
       .catch((err) => alert(err.response.data.detail));
   };
   return (
-    <div className="container">
-      <h1>Convert PDF ↔ Word </h1>
+  <div className="container">
+    <div className="card">
+      <h1 className="title">Convert PDF ↔ Word</h1>
 
-      <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-
-      <button onClick={uploadFile}>Upload File</button>
+      <div className="upload-section">
+        <input
+          type="file"
+          accept=".pdf,.docx"
+          onChange={(e) => setFile(e.target.files[0])}
+        />
+        <button onClick={uploadFile}>Upload File</button>
+      </div>
 
       <div className="buttons">
         <button onClick={pdfToWord}>PDF → Word</button>
@@ -82,26 +88,20 @@ function App() {
 
       {convertedFile && (
         <div className="result">
-          <h3>Download</h3>
-
-          {/* PDF Preview */}
-          {/* {convertedFile.endsWith(".pdf") && (
-            <iframe
-              src={`http://localhost:8000/download/${convertedFile}`}
-              width="100%"
-              height="400px"
-              title="PDF Preview"
-            ></iframe>
-          )} */}
-
-          <a href={`http://localhost:8000/download/${convertedFile}`} download>
-            {" "}
+          <h3>Download Converted File</h3>
+          <a
+            href={`${process.env.REACT_APP_API_URL}/download/${convertedFile}`}
+            download
+            className="download-btn"
+          >
             Download File
           </a>
         </div>
       )}
     </div>
-  );
+  </div>
+);
 }
+
 
 export default App;

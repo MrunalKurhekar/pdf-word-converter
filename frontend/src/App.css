@@ -1,4 +1,15 @@
-   /* General Container */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+/* General Container */
    body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #fff7f0, #d3e6b5);
@@ -123,5 +134,70 @@ a:hover {
 
   iframe {
     height: 350px;
+  }
+}
+/* ===== Improved Responsiveness (No Layout Change) ===== */
+
+/* Small Mobile Devices (320px - 480px) */
+@media (max-width: 480px) {
+
+  .container {
+    max-width: 95%;
+    margin: 20px auto;
+    padding: 18px;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  input[type="file"] {
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.95rem;
+  }
+
+  .buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  iframe {
+    height: 300px;
+  }
+}
+
+/* Medium Devices (Tablets 481px - 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+
+  .container {
+    max-width: 90%;
+    margin: 30px auto;
+    padding: 25px;
+  }
+
+  h1 {
+    font-size: 1.7rem;
+  }
+
+  button {
+    padding: 12px 20px;
+  }
+
+  iframe {
+    height: 380px;
+  }
+}
+
+/* Large Screens (1200px+) */
+@media (min-width: 1200px) {
+
+  .container {
+    max-width: 700px;
   }
 }
