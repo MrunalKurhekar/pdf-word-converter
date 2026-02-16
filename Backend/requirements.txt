@@ -4,3 +4,4 @@ pdf2docx
 python-multipart
 gunicorn
 PyPDF2
+docx2pdf
