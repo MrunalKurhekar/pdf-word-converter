@@ -7,6 +7,9 @@ import uuid
 import shutil
 from PyPDF2 import PdfReader
 from pdf2docx import Converter
+from fastapi import BackgroundTasks
+import platform
+import shutil
 
 # -----------------------------
 # FastAPI App
@@ -136,6 +139,7 @@ def pdf_to_word(filename: str):
 # -----------------------------
 # Word → PDF API (LibreOffice)
 # -----------------------------
+
 @app.post("/convert/word-to-pdf")
 def word_to_pdf(filename: str):
 
@@ -156,10 +160,22 @@ def word_to_pdf(filename: str):
     base_name = os.path.splitext(filename)[0]
     pdf_filename = f"{base_name}.pdf"
 
+    # 🔥 Proper cross-platform detection
+    if platform.system() == "Windows":
+        office_cmd = r"C:\Program Files\LibreOffice\program\soffice.exe"
+    else:
+        office_cmd = shutil.which("libreoffice") or shutil.which("soffice")
+
+    if not office_cmd:
+        raise HTTPException(
+            status_code=500,
+            detail="LibreOffice is not installed on server"
+        )
+
     try:
         subprocess.run(
             [
-                "libreoffice",
+                office_cmd,
                 "--headless",
                 "--convert-to",
                 "pdf",
@@ -169,15 +185,10 @@ def word_to_pdf(filename: str):
             ],
             check=True,
         )
-    except FileNotFoundError:
+    except subprocess.CalledProcessError as e:
         raise HTTPException(
             status_code=500,
-            detail="LibreOffice is not installed on server"
-        )
-    except subprocess.CalledProcessError:
-        raise HTTPException(
-            status_code=500,
-            detail="Word to PDF conversion failed"
+            detail=f"Word to PDF conversion failed: {str(e)}"
         )
 
     return {
@@ -185,12 +196,11 @@ def word_to_pdf(filename: str):
         "output_file": pdf_filename
     }
 
-
 # -----------------------------
 # Download API
 # -----------------------------
 @app.get("/download/{filename}")
-def download_file(filename: str):
+def download_file(filename: str, background_tasks: BackgroundTasks):
 
     file_path = os.path.join(OUTPUT_DIR, filename)
 
@@ -200,18 +210,11 @@ def download_file(filename: str):
             detail="File not found"
         )
 
-    response = FileResponse(
+    # Delete file after response
+    background_tasks.add_task(os.remove, file_path)
+
+    return FileResponse(
         file_path,
         media_type="application/octet-stream",
         filename=filename
     )
-
-    # Auto delete after download
-    @response.call_on_close
-    def cleanup():
-        try:
-            os.remove(file_path)
-        except Exception:
-            pass
-
-    return response
