@@ -1,7 +1,6 @@
 fastapi
 uvicorn
-pdf2docx
-python-multipart
 gunicorn
+pdf2docx
 PyPDF2
-docx2pdf
+python-multipart

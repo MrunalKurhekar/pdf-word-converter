@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import API from "./Api";
 import "./App.css";
 
@@ -6,102 +6,207 @@ function App() {
   const [file, setFile] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [convertedFile, setConvertedFile] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  // Upload File
+  const resultRef = useRef(null);
 
+  // File Select
+  const handleFileChange = (e) => {
+    const selected = e.target.files[0];
+
+    setConvertedFile("");
+    setUploadedFileName("");
+    setMessage("");
+
+    if (!selected) return;
+
+    if (selected.size > 10 * 1024 * 1024) {
+      setMessage("File must be less than 10MB");
+      return;
+    }
+
+    setFile(selected);
+  };
+
+  // Upload
   const uploadFile = async () => {
     if (!file) {
-      alert("Please select a file first");
+      setMessage("Please select a file first");
       return;
     }
 
     try {
+      setLoading(true);
+      setMessage("");
+
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await API.post("/upload", formData);
-
-      console.log("Uploaded file:", response.data.filename);
+      const response = await API.post("/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       setUploadedFileName(response.data.filename);
-
-      alert("File uploaded successfully");
+      setMessage("File uploaded successfully ✅");
     } catch (error) {
       console.error(error);
-      alert("Upload failed");
+      setMessage(
+        error.response?.data?.detail ||
+          "Upload failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   // PDF → Word
-
   const pdfToWord = async () => {
-    console.log("Trying to convert:", uploadedFileName);
-
     if (!uploadedFileName || !uploadedFileName.endsWith(".pdf")) {
-      alert("Please upload a PDF first");
+      setMessage("Please upload a PDF file first");
       return;
     }
 
     try {
+      setLoading(true);
+      setMessage("");
+
       const response = await API.post("/convert/pdf-to-word", null, {
         params: { filename: uploadedFileName },
       });
 
       setConvertedFile(response.data.output_file);
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
     } catch (error) {
-      alert(error.response?.data?.detail || "Conversion failed");
+      console.error(error);
+      setMessage(
+        error.response?.data?.detail ||
+          "PDF to Word conversion failed."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   // Word → PDF
-
   const wordToPdf = async () => {
-    if (!uploadedFileName) {
-      alert("Please upload a Word file first");
+    if (!uploadedFileName || !uploadedFileName.endsWith(".docx")) {
+      setMessage("Please upload a Word (.docx) file first");
       return;
     }
 
-    await API.post("/convert/word-to-pdf", null, {
-      params: { filename: uploadedFileName },
-    })
-      .then((res) => setConvertedFile(res.data.output_file))
-      .catch((err) => alert(err.response.data.detail));
-  };
-  return (
-  <div className="container">
-    <div className="card">
-      <h1 className="title">Convert PDF ↔ Word</h1>
+    try {
+      setLoading(true);
+      setMessage("");
 
-      <div className="upload-section">
+      const response = await API.post("/convert/word-to-pdf", null, {
+        params: { filename: uploadedFileName },
+      });
+
+      setConvertedFile(response.data.output_file);
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error.response?.data?.detail ||
+          "Word to PDF conversion failed."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container">
+      <header>
+        <h1>PDF Converter Pro</h1>
+        <p>Fast • Secure • Free Online PDF Tool</p>
+      </header>
+
+      <div className="card">
         <input
           type="file"
           accept=".pdf,.docx"
-          onChange={(e) => setFile(e.target.files[0])}
+          onChange={handleFileChange}
         />
-        <button onClick={uploadFile}>Upload File</button>
-      </div>
 
-      <div className="buttons">
-        <button onClick={pdfToWord}>PDF → Word</button>
-        <button onClick={wordToPdf}>Word → PDF</button>
-      </div>
+        {file && (
+          <p className="file-name">
+            Selected File: <strong>{file.name}</strong>
+          </p>
+        )}
 
-      {convertedFile && (
-        <div className="result">
-          <h3>Download Converted File</h3>
-          <a
-            href={`${process.env.REACT_APP_API_URL}/download/${convertedFile}`}
-            download
-            className="download-btn"
-          >
-            Download File
-          </a>
+        <button
+          className="upload-btn"
+          onClick={uploadFile}
+          disabled={loading}
+        >
+          {loading ? "Uploading..." : "Upload File"}
+        </button>
+
+        <div className="buttons">
+          <button onClick={pdfToWord} disabled={loading}>
+            PDF → Word
+          </button>
+          <button onClick={wordToPdf} disabled={loading}>
+            Word → PDF
+          </button>
         </div>
-      )}
-    </div>
-  </div>
-);
-}
 
+        {loading && (
+          <p className="loading">
+            Processing... Please wait ⏳
+          </p>
+        )}
+
+        {message && <p className="message">{message}</p>}
+
+        {convertedFile && (
+          <div className="result" ref={resultRef}>
+            <h3>Download Converted File</h3>
+            <a
+              href={`${process.env.REACT_APP_API_URL}/download/${convertedFile}`}
+              download
+              className="download-btn"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download File
+            </a>
+          </div>
+        )}
+      </div>
+
+      <section className="info-section">
+        <h2>Why Choose Our PDF Converter?</h2>
+        <p>
+          Convert PDF to Word and Word to PDF instantly.
+          Files are processed securely and deleted
+          automatically after conversion.
+        </p>
+      </section>
+
+      <section className="info-section">
+        <h2>How It Works</h2>
+        <p>1. Upload your file</p>
+        <p>2. Select conversion type</p>
+        <p>3. Download instantly</p>
+      </section>
+
+      <footer>
+        <p>© 2026 PDF Converter Pro</p>
+        <p>Privacy Policy | Terms & Conditions | Contact</p>
+      </footer>
+    </div>
+  );
+}
 
 export default App;
