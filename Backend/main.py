@@ -26,12 +26,16 @@ def home():
 # -----------------------------
 # Enable CORS
 # -----------------------------
+origins = [
+    "https://pdf-word-converter-frontend.onrender.com"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://pdf-word-converter-frontend.onrender.com"],  # Change to frontend URL in production
+    allow_origins=origins,        # allow your frontend
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],          # allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],          # allow all headers
 )
 
 # -----------------------------
