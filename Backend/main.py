@@ -1,9 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-import shutil
 import os
 import subprocess
+import uuid
+import shutil
 from PyPDF2 import PdfReader
 from pdf2docx import Converter
 
@@ -24,7 +25,7 @@ def home():
 # -----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Change to frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,8 +36,12 @@ app.add_middleware(
 # -----------------------------
 UPLOAD_DIR = "uploads"
 OUTPUT_DIR = "outputs"
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
 
 # -----------------------------
 # Upload API
@@ -44,15 +49,28 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
 
-    if not file:
-        raise HTTPException(status_code=400, detail="No file uploaded")
+    contents = await file.read()
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    if len(contents) > MAX_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Max 10MB allowed."
+        )
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Generate secure unique filename
+    unique_name = f"{uuid.uuid4()}_{file.filename}"
+    file_path = os.path.join(UPLOAD_DIR, unique_name)
 
-    return {"filename": file.filename}
+    try:
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save file"
+        )
+
+    return {"filename": unique_name}
 
 
 # -----------------------------
@@ -61,25 +79,38 @@ async def upload_file(file: UploadFile = File(...)):
 @app.post("/convert/pdf-to-word")
 def pdf_to_word(filename: str):
 
-    if not filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-
-    if not filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files allowed")
+    if not filename or not filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files allowed"
+        )
 
     pdf_path = os.path.join(UPLOAD_DIR, filename)
 
     if not os.path.exists(pdf_path):
-        raise HTTPException(status_code=404, detail="PDF file not found")
+        raise HTTPException(
+            status_code=404,
+            detail="PDF file not found"
+        )
 
-    # Check if PDF is scanned
+    # Validate PDF content
     try:
         reader = PdfReader(pdf_path)
+
+        if len(reader.pages) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Empty PDF file"
+            )
+
         if not reader.pages[0].extract_text():
             raise HTTPException(
                 status_code=400,
                 detail="Scanned PDFs are not supported"
             )
+
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(
             status_code=400,
@@ -108,16 +139,19 @@ def pdf_to_word(filename: str):
 @app.post("/convert/word-to-pdf")
 def word_to_pdf(filename: str):
 
-    if not filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-
-    if not filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Only DOCX files allowed")
+    if not filename or not filename.lower().endswith(".docx"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only DOCX files allowed"
+        )
 
     doc_path = os.path.join(UPLOAD_DIR, filename)
 
     if not os.path.exists(doc_path):
-        raise HTTPException(status_code=404, detail="Word file not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Word file not found"
+        )
 
     base_name = os.path.splitext(filename)[0]
     pdf_filename = f"{base_name}.pdf"
@@ -134,6 +168,11 @@ def word_to_pdf(filename: str):
                 OUTPUT_DIR,
             ],
             check=True,
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail="LibreOffice is not installed on server"
         )
     except subprocess.CalledProcessError:
         raise HTTPException(
@@ -156,10 +195,23 @@ def download_file(filename: str):
     file_path = os.path.join(OUTPUT_DIR, filename)
 
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(
+            status_code=404,
+            detail="File not found"
+        )
 
-    return FileResponse(
+    response = FileResponse(
         file_path,
         media_type="application/octet-stream",
         filename=filename
     )
+
+    # Auto delete after download
+    @response.call_on_close
+    def cleanup():
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
+
+    return response

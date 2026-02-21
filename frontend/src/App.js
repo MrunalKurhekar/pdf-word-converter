@@ -11,7 +11,7 @@ function App() {
 
   const resultRef = useRef(null);
 
-  // File Select
+  // File Selection
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
 
@@ -29,7 +29,7 @@ function App() {
     setFile(selected);
   };
 
-  // Upload
+  // Upload File
   const uploadFile = async () => {
     if (!file) {
       setMessage("Please select a file first");
@@ -43,11 +43,7 @@ function App() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await API.post("/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await API.post("/upload", formData);
 
       setUploadedFileName(response.data.filename);
       setMessage("File uploaded successfully ✅");
@@ -62,9 +58,9 @@ function App() {
     }
   };
 
-  // PDF → Word
+  // Convert PDF → Word
   const pdfToWord = async () => {
-    if (!uploadedFileName || !uploadedFileName.endsWith(".pdf")) {
+    if (!uploadedFileName.endsWith(".pdf")) {
       setMessage("Please upload a PDF file first");
       return;
     }
@@ -93,9 +89,9 @@ function App() {
     }
   };
 
-  // Word → PDF
+  // Convert Word → PDF
   const wordToPdf = async () => {
-    if (!uploadedFileName || !uploadedFileName.endsWith(".docx")) {
+    if (!uploadedFileName.endsWith(".docx")) {
       setMessage("Please upload a Word (.docx) file first");
       return;
     }
